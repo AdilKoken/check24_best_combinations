@@ -1,64 +1,174 @@
-import React from "react";
+import React, { useState } from "react";
+import {
+  Container,
+  Typography,
+  Box,
+  Paper,
+  Tab,
+  Tabs,
+  CircularProgress,
+  Alert,
+  Snackbar,
+} from "@mui/material";
 import { TeamSelector } from "./components/TeamSelector";
-import { FilterSection } from "./components/FilterSection";
-import { PackageList } from "./components/PackageList";
-import { ComparisonTable } from "./components/ComparisonTable";
-import type { FilterOptions } from "./types";
-import "./styles/App.css";
+import { PackageComparisonTable } from "./components/PackageComparison";
+import { PackageCombinationList } from "./components/PackageCombination";
+import { streamingApi } from "./api";
+import type { PackageComparison, PackageCombination } from "./types/data";
 
-const App: React.FC = () => {
-  const [teams, setTeams] = React.useState<string[]>([]);
-  const [teamsLoading, setTeamsLoading] = React.useState(false);
-  const [teamsError, setTeamsError] = React.useState<string | null>(null);
+interface ErrorState {
+  open: boolean;
+  message: string;
+}
 
-  const [selectedPackages, setSelectedPackages] = React.useState<number[]>([]);
-  const [filters, setFilters] = React.useState<FilterOptions>({
-    selectedTeams: [],
-    minPrice: 0,
-    maxPrice: 1000,
-    requireLive: false,
-    requireHighlights: false,
-    minCoverage: 0,
-  });
+export const App: React.FC = () => {
+  // State management
+  const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [packages, setPackages] = useState<PackageComparison[]>([]);
+  const [combinations, setCombinations] = useState<PackageCombination[]>([]);
+  const [activeTab, setActiveTab] = useState(0);
+  const [error, setError] = useState<ErrorState>({ open: false, message: "" });
 
-  const handleTeamsChange = (selectedTeams: string[]) => {
-    setFilters((prev) => ({ ...prev, selectedTeams }));
-    setSelectedPackages([]);
+  // Error handling
+  const handleError = (message: string) => {
+    setError({ open: true, message });
   };
 
-  const handleFilterChange = (newFilters: Partial<FilterOptions>) => {
-    setFilters((prev) => ({ ...prev, ...newFilters }));
+  const handleCloseError = () => {
+    setError({ ...error, open: false });
+  };
+
+  // Data fetching
+  const handleTeamsChange = async (teams: string[]) => {
+    setSelectedTeams(teams);
+
+    if (teams.length === 0) {
+      setPackages([]);
+      setCombinations([]);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const [packagesData, combinationsData] = await Promise.all([
+        streamingApi.comparePackages(teams),
+        streamingApi.findBestCombinations(teams),
+      ]);
+
+      setPackages(packagesData);
+      setCombinations(combinationsData);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      handleError("Failed to fetch package data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Content sections
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <Box
+          display="flex"
+          justifyContent="center"
+          alignItems="center"
+          minHeight="200px"
+        >
+          <CircularProgress />
+        </Box>
+      );
+    }
+
+    if (selectedTeams.length === 0) {
+      return (
+        <Box sx={{ textAlign: "center", py: 4 }}>
+          <Typography color="text.secondary">
+            Select teams to see available streaming packages
+          </Typography>
+        </Box>
+      );
+    }
+
+    return (
+      <Paper sx={{ mt: 4 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, newValue) => setActiveTab(newValue)}
+          centered
+          sx={{ borderBottom: 1, borderColor: "divider" }}
+        >
+          <Tab
+            label={`Package Comparison (${packages.length})`}
+            id="tab-0"
+            aria-controls="tabpanel-0"
+          />
+          <Tab
+            label={`Best Combinations (${combinations.length})`}
+            id="tab-1"
+            aria-controls="tabpanel-1"
+          />
+        </Tabs>
+
+        <Box sx={{ p: 3 }}>
+          {activeTab === 0 && (
+            <PackageComparisonTable packages={packages} loading={loading} />
+          )}
+          {activeTab === 1 && (
+            <PackageCombinationList
+              combinations={combinations}
+              loading={loading}
+            />
+          )}
+        </Box>
+      </Paper>
+    );
   };
 
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>Streaming Package Comparison</h1>
-        <p>Find the best combination of streaming packages</p>
-      </header>
+    <Container maxWidth="lg">
+      <Box sx={{ py: 4 }}>
+        {/* Header */}
+        <Typography
+          variant="h4"
+          component="h1"
+          gutterBottom
+          align="center"
+          sx={{ mb: 4 }}
+        >
+          Streaming Package Comparison
+        </Typography>
 
-      <main className="app-content">
-        <div className="content-grid">
-          <aside className="filters-sidebar">
-            <FilterSection onFilterChange={handleFilterChange} teams={teams} />
-          </aside>
+        {/* Team Selection */}
+        <Box sx={{ maxWidth: 600, mx: "auto", mb: 4 }}>
+          <TeamSelector onTeamsChange={handleTeamsChange} disabled={loading} />
+          {selectedTeams.length > 0 && (
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ mt: 1, textAlign: "center" }}
+            >
+              Showing results for {selectedTeams.length} selected team(s)
+            </Typography>
+          )}
+        </Box>
 
-          <div className="main-content">
-            <section className="section">
-              <h2>Select Teams</h2>
-              <TeamSelector
-                teams={teams}
-                selectedTeams={filters.selectedTeams}
-                onTeamsChange={handleTeamsChange}
-                isLoading={teamsLoading}
-                error={teamsError}
-              />
-            </section>
-          </div>
-        </div>
-      </main>
-    </div>
+        {/* Main Content */}
+        {renderContent()}
+
+        {/* Error Snackbar */}
+        <Snackbar
+          open={error.open}
+          autoHideDuration={6000}
+          onClose={handleCloseError}
+          anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+        >
+          <Alert onClose={handleCloseError} severity="error" variant="filled">
+            {error.message}
+          </Alert>
+        </Snackbar>
+      </Box>
+    </Container>
   );
 };
-
-export default App;

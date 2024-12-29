@@ -1,48 +1,57 @@
-# Streaming Package Comparison
+# Streaming Package Comparison Application
 
-A web application to compare streaming packages for sports events, built with Django and React.
+## Project Setup
 
-## Features
-
-- Compare streaming packages for multiple teams
-- Filter packages based on various criteria
-- Find optimal package combinations
-- Interactive user interface
-
-## Prerequisites
+### Prerequisites
 
 - Docker
 - Docker Compose
 
-## Getting Started
+### Running the Application
 
-1. Clone the repository:
+1. Clone the repository
+
 ```bash
-git clone <your-repository-url>
-cd streaming-comparison
+git clone <repository-url>
+cd <project-directory>
 ```
 
-2. Start the application:
+2. Start the application using Docker Compose
+
 ```bash
 docker-compose up --build
 ```
 
-3. Access the application:
+3. The application will be available at:
+
 - Frontend: http://localhost:3000
-- Backend API: http://localhost:8000/api
+- Backend API: http://localhost:8000
 
-## Project Structure
+### Initial Database Setup
 
-- `backend/`: Django REST API
-- `frontend/`: React application
-- `docker-compose.yml`: Docker composition configuration
+The database will be automatically set up when you first run the application. The following will happen automatically:
+
+- Database creation
+- Migrations
+- Initial data import from CSV files
+
+### API Endpoints
+
+- `GET /api/teams/` - Get all teams
+- `GET /api/teams/search/?query=` - Search teams
+- `POST /api/packages/compare/` - Compare packages for selected teams
+- `POST /api/packages/combinations/` - Get optimal package combinations
+- `GET /api/packages/` - List all packages
+- `POST /api/games/teams/` - Get games for selected teams
 
 ## Development
 
-To run the development environment:
+To run tests or make migrations within the Docker container:
 
 ```bash
-docker-compose up
-```
+# Run migrations
+docker-compose exec backend python manage.py migrate
 
-Any changes to the code will automatically reload the applications.
+# Import initial data
+docker-compose exec backend python manage.py import_data
+```

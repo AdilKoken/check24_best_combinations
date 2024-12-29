@@ -1,19 +1,19 @@
-FROM node:16
+# Frontend Dockerfile
+FROM node:18-alpine
 
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
-COPY tsconfig.json ./
+COPY package.json package-lock.json* ./
 
 # Install dependencies
 RUN npm install
 
-# Copy project files
+# Copy the rest of the application
 COPY . .
 
-# Expose port
+# Expose port 3000
 EXPOSE 3000
 
-# Start the application
-CMD ["npm", "start"]
+# Start the development server
+CMD ["npm", "run", "dev"]

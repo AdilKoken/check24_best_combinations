@@ -1,54 +1,59 @@
 services:
-  db:
-    image: postgres:13
-    environment:
-      - POSTGRES_DB=streaming_db
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-    ports:
-      - "5433:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  backend:
-    build: ./backend
-    volumes:
-      - ./backend:/app
-    ports:
-      - "8000:8000"
-    command: >
-      bash -c "python manage.py makemigrations streaming &&
-               python manage.py migrate &&
-               python manage.py runserver 0.0.0.0:8000"
-    environment:
-      - DEBUG=1
-      - DJANGO_SETTINGS_MODULE=core.settings
-      - POSTGRES_DB=streaming_db
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432
-    depends_on:
-      db:
-        condition: service_healthy
-
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    ports:
-      - "3000:3000"
     environment:
-      - REACT_APP_API_URL=http://localhost:8000/api
-    command: npm start
+      - VITE_API_URL=/api
     depends_on:
       - backend
+  
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./backend/data:/app/data
+    environment:
+      - DEBUG=1
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+      - POSTGRES_DB=check24db
+      - POSTGRES_USER=check24user
+      - POSTGRES_PASSWORD=check24password
+      - POSTGRES_HOST=db
+      - DOCKER_CONTAINER=1
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "python manage.py wait_for_db &&
+             python manage.py migrate &&
+             python manage.py import_data &&
+             python manage.py runserver 0.0.0.0:8000"
+
+  db:
+    image: postgres:13
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=check24db
+      - POSTGRES_USER=check24user
+      - POSTGRES_PASSWORD=check24password
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U check24user -d check24db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
