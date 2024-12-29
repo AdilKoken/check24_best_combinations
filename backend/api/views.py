@@ -39,63 +39,37 @@ class TeamSearchView(views.APIView):
             list(away_teams.values_list('team_away', flat=True))
         ))
         return Response(all_teams)
-
-class PackageComparisonView(views.APIView):
-    def post(self, request):
-        """Compare packages for selected teams"""
+    
+class PackagesByTeamsView(views.APIView):
+    http_method_names = ['post']
+    
+    def post(self, request, *args, **kwargs):
+        """Get packages that offer all games for selected teams"""
+        print("Received request method:", request.method)
+        print("Received content type:", request.content_type)
+        print("Received data:", request.data)
+        
         teams = request.data.get('teams', [])
+        print("Extracted teams:", teams)
+        
         if not teams:
             return Response([])
-
-        # Get all relevant games
-        games = Game.objects.filter(
+            
+        # Get all games involving the selected teams
+        team_games = Game.objects.filter(
             Q(team_home__in=teams) | Q(team_away__in=teams)
         )
-        game_ids = set(games.values_list('id', flat=True))
-
-        # Calculate coverage for each package
-        packages = StreamingPackage.objects.all()
-        comparisons = []
+        print("Found games:", team_games.count())
         
-        for package in packages:
-            coverage = calculate_package_coverage(package, game_ids)
-            comparison = {
-                'package': package,
-                'coverage': coverage
-            }
-            comparisons.append(comparison)
-
-        # Sort by coverage percentage (descending)
-        comparisons.sort(key=lambda x: x['coverage']['coverage_percentage'], reverse=True)
+        # Get packages that cover all these games
+        packages = StreamingPackage.objects.filter(
+            streamingoffer__game__in=team_games,
+            streamingoffer__live=True
+        ).distinct()
+        print("Found packages:", packages.count())
         
-        serializer = PackageCoverageSerializer(comparisons, many=True)
+        serializer = StreamingPackageSerializer(packages, many=True)
         return Response(serializer.data)
-
-class PackageCombinationView(views.APIView):
-    def post(self, request):
-        """Find optimal package combinations"""
-        teams = request.data.get('teams', [])
-        if not teams:
-            return Response([])
-
-        combinations = find_optimal_combinations(teams)
-        serializer = PackageCombinationSerializer(combinations, many=True)
-        return Response(serializer.data)
-
-class TeamGamesView(views.APIView):
-    def post(self, request):
-        """Get all games for selected teams"""
-        teams = request.data.get('teams', [])
-        if not teams:
-            return Response([])
-
-        games = Game.objects.filter(
-            Q(team_home__in=teams) | Q(team_away__in=teams)
-        ).order_by('starts_at')
-        
-        serializer = GameSerializer(games, many=True)
-        return Response(serializer.data)
-
 class StreamingPackageViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet for listing all streaming packages"""
     queryset = StreamingPackage.objects.all()

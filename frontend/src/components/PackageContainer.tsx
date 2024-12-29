@@ -1,13 +1,17 @@
-// PackageContainer.tsx
-import React, { useState, useEffect } from "react";
-import { Container, Typography, CircularProgress, Box } from "@mui/material";
+import React, { useEffect, useState } from "react";
+import { Package } from "../types/components";
 import { streamingApi } from "../api";
-import PackageCards from "./PackageCards";
-import { Package, PackageContainerProps } from "../types/components";
+import { PackageCards } from "./PackageCards";
+import { PriceType } from "../types/components";
 
-const PackageContainer: React.FC<PackageContainerProps> = ({
-  priceType,
-  priceRange,
+interface PackageContainerProps {
+  priceType: PriceType;
+  priceRange: number[] | null;
+  selectedTeams: string[];
+}
+
+export const PackageContainer: React.FC<PackageContainerProps> = ({
+  selectedTeams,
 }) => {
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,78 +19,45 @@ const PackageContainer: React.FC<PackageContainerProps> = ({
 
   useEffect(() => {
     const fetchPackages = async () => {
+      setLoading(true);
       try {
-        const data = await streamingApi.getAllPackages();
+        // Add console.log for debugging
+        console.log("Fetching packages with teams:", selectedTeams);
+
+        const data =
+          selectedTeams?.length > 0
+            ? await streamingApi.getPackagesByTeams(selectedTeams)
+            : await streamingApi.getAllPackages();
+        const all_packages = await streamingApi.getAllPackages();
+        console.log("all packages:", all_packages);
+
+        console.log("Received packages:", data);
         setPackages(data);
       } catch (err) {
         console.error("Error loading packages:", err);
-        setError("Failed to load streaming packages");
+        setError("Failed to load packages");
       } finally {
         setLoading(false);
       }
     };
 
     fetchPackages();
-  }, []);
-
-  const filteredPackages = packages.filter((pkg) => {
-    if (priceType === "all") {
-      return true;
-    }
-
-    if (priceType === "monthly") {
-      if (pkg.monthly_price_cents === null) {
-        return false;
-      }
-      if (priceRange) {
-        return (
-          pkg.monthly_price_cents >= priceRange[0] &&
-          pkg.monthly_price_cents <= priceRange[1]
-        );
-      }
-      return true;
-    }
-
-    if (priceType === "yearly") {
-      if (pkg.monthly_price_yearly_subscription_in_cents === null) {
-        return false;
-      }
-      if (priceRange) {
-        return (
-          pkg.monthly_price_yearly_subscription_in_cents >= priceRange[0] &&
-          pkg.monthly_price_yearly_subscription_in_cents <= priceRange[1]
-        );
-      }
-      return true;
-    }
-
-    return true;
-  });
+  }, [selectedTeams]);
 
   if (loading) {
-    return (
-      <Box className="flex justify-center items-center min-h-64">
-        <CircularProgress />
-      </Box>
-    );
+    return <div>Loading...</div>;
   }
 
   if (error) {
-    return (
-      <Typography color="error" className="text-center">
-        {error}
-      </Typography>
-    );
+    return <div>Error: {error}</div>;
   }
 
-  return (
-    <Container maxWidth="lg" className="py-8">
-      <Typography variant="h4" component="h1" className="mb-8 text-center">
-        Available Streaming Packages
-      </Typography>
-      <PackageCards packages={filteredPackages} />
-    </Container>
+  // Add console.log for debugging
+  console.log("Rendering packages:", packages);
+
+  return packages.length > 0 ? (
+    <PackageCards packages={packages} />
+  ) : (
+    <div>No packages found</div>
   );
 };
-
-export default PackageContainer;

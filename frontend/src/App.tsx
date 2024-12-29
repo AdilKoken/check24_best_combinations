@@ -1,5 +1,4 @@
-// App.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Container,
   Typography,
@@ -13,14 +12,22 @@ import {
   ListItemText,
   Paper,
 } from "@mui/material";
-import PackageContainer from "./components/PackageContainer";
-import { PriceType } from "./types";
+import { PackageContainer } from "./components/PackageContainer";
+import { PriceType } from "./types/components";
+import { TeamSelector } from "./components/TeamSelector";
 
 export const App: React.FC = () => {
   // State to manage filter criteria
   const [priceType, setPriceType] = useState<PriceType>("all");
   const [priceRange, setPriceRange] = useState<number[]>([0, 8000]); // Price in cents (0€ to 50€)
   const [isFilterApplied, setIsFilterApplied] = useState(false);
+
+  const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
+
+  const handleTeamsChange = (teams: string[]) => {
+    setSelectedTeams(teams);
+    setIsFilterApplied(false);
+  };
 
   // Handler for price range changes
   const handlePriceChange = (event: Event, newValue: number | number[]) => {
@@ -82,6 +89,11 @@ export const App: React.FC = () => {
               >
                 Filters
               </Typography>
+
+              <TeamSelector
+                selectedTeams={selectedTeams}
+                onTeamsChange={handleTeamsChange}
+              />
 
               {/* Price Type Selection */}
               <List
@@ -175,7 +187,7 @@ export const App: React.FC = () => {
                 color={isFilterApplied ? "secondary" : "primary"}
                 onClick={toggleFilter}
                 fullWidth
-                disabled={priceType === "all"}
+                disabled={priceType === "all" && selectedTeams.length === 0}
                 sx={{
                   py: 1.5,
                   textTransform: "none",
@@ -192,10 +204,12 @@ export const App: React.FC = () => {
           </Grid>
 
           {/* Packages Display */}
+          {/* Packages Display */}
           <Grid item xs={12} md={9}>
             <PackageContainer
               priceType={priceType}
               priceRange={isFilterApplied ? priceRange : null}
+              selectedTeams={selectedTeams} // Add this
             />
           </Grid>
         </Grid>

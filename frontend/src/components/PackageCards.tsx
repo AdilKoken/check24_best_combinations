@@ -4,7 +4,7 @@ import { Grid } from "@mui/material";
 import { PackageCardsProps } from "../types/components";
 import PackageCard from "./PackageCard";
 
-const PackageCards: React.FC<PackageCardsProps> = ({ packages }) => {
+export const PackageCards: React.FC<PackageCardsProps> = ({ packages }) => {
   return (
     <Grid container spacing={3}>
       {packages.map((pkg) => (
