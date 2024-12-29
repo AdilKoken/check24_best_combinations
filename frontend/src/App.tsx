@@ -1,174 +1,207 @@
+// App.tsx
 import React, { useState } from "react";
 import {
   Container,
   Typography,
   Box,
+  Button,
+  Grid,
+  Slider,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
   Paper,
-  Tab,
-  Tabs,
-  CircularProgress,
-  Alert,
-  Snackbar,
 } from "@mui/material";
-import { TeamSelector } from "./components/TeamSelector";
-import { PackageComparisonTable } from "./components/PackageComparison";
-import { PackageCombinationList } from "./components/PackageCombination";
-import { streamingApi } from "./api";
-import type { PackageComparison, PackageCombination } from "./types/data";
-
-interface ErrorState {
-  open: boolean;
-  message: string;
-}
+import PackageContainer from "./components/PackageContainer";
+import { PriceType } from "./types";
 
 export const App: React.FC = () => {
-  // State management
-  const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [packages, setPackages] = useState<PackageComparison[]>([]);
-  const [combinations, setCombinations] = useState<PackageCombination[]>([]);
-  const [activeTab, setActiveTab] = useState(0);
-  const [error, setError] = useState<ErrorState>({ open: false, message: "" });
+  // State to manage filter criteria
+  const [priceType, setPriceType] = useState<PriceType>("all");
+  const [priceRange, setPriceRange] = useState<number[]>([0, 8000]); // Price in cents (0€ to 50€)
+  const [isFilterApplied, setIsFilterApplied] = useState(false);
 
-  // Error handling
-  const handleError = (message: string) => {
-    setError({ open: true, message });
+  // Handler for price range changes
+  const handlePriceChange = (event: Event, newValue: number | number[]) => {
+    setPriceRange(newValue as number[]);
   };
 
-  const handleCloseError = () => {
-    setError({ ...error, open: false });
+  // Handler for price type selection
+  const handlePriceTypeChange = (newType: PriceType) => {
+    setPriceType(newType);
+    setIsFilterApplied(false); // Reset filter when changing price type
   };
 
-  // Data fetching
-  const handleTeamsChange = async (teams: string[]) => {
-    setSelectedTeams(teams);
-
-    if (teams.length === 0) {
-      setPackages([]);
-      setCombinations([]);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const [packagesData, combinationsData] = await Promise.all([
-        streamingApi.comparePackages(teams),
-        streamingApi.findBestCombinations(teams),
-      ]);
-
-      setPackages(packagesData);
-      setCombinations(combinationsData);
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      handleError("Failed to fetch package data. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Content sections
-  const renderContent = () => {
-    if (loading) {
-      return (
-        <Box
-          display="flex"
-          justifyContent="center"
-          alignItems="center"
-          minHeight="200px"
-        >
-          <CircularProgress />
-        </Box>
-      );
-    }
-
-    if (selectedTeams.length === 0) {
-      return (
-        <Box sx={{ textAlign: "center", py: 4 }}>
-          <Typography color="text.secondary">
-            Select teams to see available streaming packages
-          </Typography>
-        </Box>
-      );
-    }
-
-    return (
-      <Paper sx={{ mt: 4 }}>
-        <Tabs
-          value={activeTab}
-          onChange={(_, newValue) => setActiveTab(newValue)}
-          centered
-          sx={{ borderBottom: 1, borderColor: "divider" }}
-        >
-          <Tab
-            label={`Package Comparison (${packages.length})`}
-            id="tab-0"
-            aria-controls="tabpanel-0"
-          />
-          <Tab
-            label={`Best Combinations (${combinations.length})`}
-            id="tab-1"
-            aria-controls="tabpanel-1"
-          />
-        </Tabs>
-
-        <Box sx={{ p: 3 }}>
-          {activeTab === 0 && (
-            <PackageComparisonTable packages={packages} loading={loading} />
-          )}
-          {activeTab === 1 && (
-            <PackageCombinationList
-              combinations={combinations}
-              loading={loading}
-            />
-          )}
-        </Box>
-      </Paper>
-    );
+  // Handler for toggling filter: Apply or Clear
+  const toggleFilter = () => {
+    setIsFilterApplied(!isFilterApplied);
   };
 
   return (
     <Container maxWidth="lg">
-      <Box sx={{ py: 4 }}>
+      <Box sx={{ py: 6 }}>
         {/* Header */}
         <Typography
           variant="h4"
           component="h1"
-          gutterBottom
           align="center"
-          sx={{ mb: 4 }}
+          sx={{
+            mb: 6,
+            fontWeight: 700,
+            background: "linear-gradient(45deg, #1976d2, #2196f3)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}
         >
           Streaming Package Comparison
         </Typography>
 
-        {/* Team Selection */}
-        <Box sx={{ maxWidth: 600, mx: "auto", mb: 4 }}>
-          <TeamSelector onTeamsChange={handleTeamsChange} disabled={loading} />
-          {selectedTeams.length > 0 && (
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{ mt: 1, textAlign: "center" }}
+        <Grid container spacing={4}>
+          {/* Filter Sidebar */}
+          <Grid item xs={12} md={3}>
+            <Paper
+              elevation={2}
+              sx={{
+                p: 3,
+                borderRadius: 2,
+                background:
+                  "linear-gradient(to bottom right, #ffffff, #fafafa)",
+              }}
             >
-              Showing results for {selectedTeams.length} selected team(s)
-            </Typography>
-          )}
-        </Box>
+              <Typography
+                variant="h6"
+                sx={{
+                  mb: 3,
+                  fontWeight: 600,
+                  color: "primary.main",
+                  borderBottom: "2px solid",
+                  borderColor: "primary.light",
+                  pb: 1,
+                }}
+              >
+                Filters
+              </Typography>
 
-        {/* Main Content */}
-        {renderContent()}
+              {/* Price Type Selection */}
+              <List
+                component="nav"
+                sx={{
+                  mb: 3,
+                  "& .MuiListItemButton-root": {
+                    borderRadius: 1,
+                    mb: 1,
+                    "&.Mui-selected": {
+                      backgroundColor: "primary.main",
+                      color: "white",
+                      "&:hover": {
+                        backgroundColor: "primary.dark",
+                      },
+                    },
+                  },
+                }}
+              >
+                <ListItem disablePadding>
+                  <ListItemButton
+                    selected={priceType === "all"}
+                    onClick={() => handlePriceTypeChange("all")}
+                  >
+                    <ListItemText primary="All Packages" />
+                  </ListItemButton>
+                </ListItem>
+                <ListItem disablePadding>
+                  <ListItemButton
+                    selected={priceType === "monthly"}
+                    onClick={() => handlePriceTypeChange("monthly")}
+                  >
+                    <ListItemText primary="Monthly Price Only" />
+                  </ListItemButton>
+                </ListItem>
+                <ListItem disablePadding>
+                  <ListItemButton
+                    selected={priceType === "yearly"}
+                    onClick={() => handlePriceTypeChange("yearly")}
+                  >
+                    <ListItemText primary="Yearly Subscription Only" />
+                  </ListItemButton>
+                </ListItem>
+              </List>
 
-        {/* Error Snackbar */}
-        <Snackbar
-          open={error.open}
-          autoHideDuration={6000}
-          onClose={handleCloseError}
-          anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-        >
-          <Alert onClose={handleCloseError} severity="error" variant="filled">
-            {error.message}
-          </Alert>
-        </Snackbar>
+              {/* Price Range Slider */}
+              {priceType !== "all" && (
+                <Box sx={{ px: 2, pb: 3 }}>
+                  <Typography
+                    gutterBottom
+                    sx={{
+                      fontWeight: 500,
+                      color: "text.primary",
+                    }}
+                  >
+                    Price Range (€)
+                  </Typography>
+                  <Slider
+                    value={priceRange}
+                    onChange={handlePriceChange}
+                    valueLabelDisplay="auto"
+                    min={0}
+                    max={5000}
+                    step={100}
+                    valueLabelFormat={(value) => `${(value / 100).toFixed(2)}€`}
+                    sx={{
+                      "& .MuiSlider-thumb": {
+                        "&:hover, &.Mui-focusVisible": {
+                          boxShadow: "0 0 0 8px rgba(25, 118, 210, 0.16)",
+                        },
+                      },
+                    }}
+                  />
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "text.secondary",
+                      mt: 1,
+                      textAlign: "center",
+                    }}
+                  >
+                    {(priceRange[0] / 100).toFixed(2)}€ -{" "}
+                    {(priceRange[1] / 100).toFixed(2)}€
+                  </Typography>
+                </Box>
+              )}
+
+              {/* Toggle Apply/Clear Button */}
+              <Button
+                variant={isFilterApplied ? "outlined" : "contained"}
+                color={isFilterApplied ? "secondary" : "primary"}
+                onClick={toggleFilter}
+                fullWidth
+                disabled={priceType === "all"}
+                sx={{
+                  py: 1.5,
+                  textTransform: "none",
+                  fontWeight: 600,
+                  boxShadow: isFilterApplied ? "none" : 2,
+                  "&:hover": {
+                    boxShadow: isFilterApplied ? "none" : 4,
+                  },
+                }}
+              >
+                {isFilterApplied ? "Clear Filter" : "Apply Filter"}
+              </Button>
+            </Paper>
+          </Grid>
+
+          {/* Packages Display */}
+          <Grid item xs={12} md={9}>
+            <PackageContainer
+              priceType={priceType}
+              priceRange={isFilterApplied ? priceRange : null}
+            />
+          </Grid>
+        </Grid>
       </Box>
     </Container>
   );
 };
+
+export default App;

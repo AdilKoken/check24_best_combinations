@@ -45,22 +45,18 @@ class Command(BaseCommand):
                 # ================================
                 self.stdout.write('Importing packages...')
                 packages_df = pd.read_csv(settings.PACKAGES_CSV)
-                packages_df['monthly_price_cents'] = packages_df['monthly_price_cents'].fillna(0)
-                packages_df['monthly_price_yearly_subscription_in_cents'] = (
-                    packages_df['monthly_price_yearly_subscription_in_cents'].fillna(0)
-                )
 
                 packages = [
                     StreamingPackage(
                         id=row['id'],
                         name=row['name'],
-                        monthly_price_cents=int(row['monthly_price_cents']),
-                        monthly_price_yearly_subscription_in_cents=int(
-                            row['monthly_price_yearly_subscription_in_cents']
-                        )
+                        monthly_price_cents=int(row['monthly_price_cents']) if pd.notna(row['monthly_price_cents']) else None,
+                        monthly_price_yearly_subscription_in_cents=int(row['monthly_price_yearly_subscription_in_cents']) 
+                            if pd.notna(row['monthly_price_yearly_subscription_in_cents']) else None
                     )
                     for _, row in packages_df.iterrows()
                 ]
+
                 StreamingPackage.objects.bulk_create(packages)
                 self.stdout.write(self.style.SUCCESS(f'Successfully imported {len(packages)} packages'))
 

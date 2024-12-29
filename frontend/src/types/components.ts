@@ -1,23 +1,21 @@
-import { StreamingPackage } from './data';
-import { PackageCoverage, PackageCombination } from './api';
+export type PriceType = "all" | "monthly" | "yearly";
 
-export interface TeamSelectorProps {
-   onTeamsChange: (teams: string[]) => void;
-   disabled?: boolean;
- }
- 
- export interface PackageComparisonProps {
-   packages: PackageCoverage[];
-   loading?: boolean;
- }
- 
- export interface PackageCombinationProps {
-   combinations: PackageCombination[];
-   loading?: boolean;
- }
- 
- export interface MatchScheduleProps {
-   selectedTeams: string[];
-   packages: StreamingPackage[];
-   loading?: boolean;
- }
+export interface Package {
+  id: number;
+  name: string;
+  monthly_price_cents: number | null;
+  monthly_price_yearly_subscription_in_cents: number | null;
+}
+
+export interface PackageCardProps {
+  pkg: Package;
+}
+
+export interface PackageCardsProps {
+  packages: Package[];
+}
+
+export interface PackageContainerProps {
+  priceType: PriceType;
+  priceRange: number[] | null;
+}

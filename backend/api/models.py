@@ -15,10 +15,10 @@ class Game(models.Model):
 
 
 class StreamingPackage(models.Model):
-    id = models.AutoField(primary_key=True)
+    id = models.IntegerField(primary_key=True)
     name = models.CharField(max_length=255)
-    monthly_price_cents = models.IntegerField()
-    monthly_price_yearly_subscription_in_cents = models.IntegerField()
+    monthly_price_cents = models.IntegerField(null=True)
+    monthly_price_yearly_subscription_in_cents = models.IntegerField(null=True)
 
     class Meta:
         db_table = 'packages'

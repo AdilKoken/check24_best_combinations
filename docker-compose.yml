@@ -9,10 +9,10 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=/api
+      - VITE_API_URL=
     depends_on:
       - backend
-  
+
   backend:
     build:
       context: ./backend
@@ -24,7 +24,7 @@ services:
       - ./backend/data:/app/data
     environment:
       - DEBUG=1
-      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,backend,0.0.0.0
       - POSTGRES_DB=check24db
       - POSTGRES_USER=check24user
       - POSTGRES_PASSWORD=check24password

@@ -17,6 +17,13 @@ class TeamListView(views.APIView):
         away_teams = Game.objects.values_list('team_away', flat=True).distinct()
         all_teams = sorted(set(list(home_teams) + list(away_teams)))
         return Response(all_teams)
+    
+class PackageListView(views.APIView):
+    def get(self, request):
+        """Get all streaming packages"""
+        packages = StreamingPackage.objects.all()
+        serializer = StreamingPackageSerializer(packages, many=True)
+        return Response(serializer.data)
 
 class TeamSearchView(views.APIView):
     def get(self, request):
