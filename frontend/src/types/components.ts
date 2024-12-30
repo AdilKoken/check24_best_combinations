@@ -25,3 +25,18 @@ export interface PackageCardsProps {
 export interface PackageContainerProps {
     selectedTeams: string[];
 }
+
+export interface PackageCombination {
+  packages: Package[];
+  total_monthly_price: number;
+  total_yearly_by_monthly: number;
+  coverage: number;
+}
+
+export interface PackageCombinationCardProps {
+  combination: PackageCombination;
+}
+
+export interface PackageCombinationsProps {
+  combinations: PackageCombination[];
+}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Container,
   Typography,
@@ -12,17 +12,20 @@ import {
   ListItemText,
   Paper,
 } from "@mui/material";
-import { PackageContainer } from "./components/PackageContainer";
-import { PriceType } from "./types/components";
-import { TeamSelector } from "./components/TeamSelector";
+import PackageContainer from "./components/PackageContainer";
+import { PackageCombinationsContainer } from "./components/PackageCombinationsContainer";
+import { PriceType, Package } from "./types/components";
+import TeamSelector from "./components/TeamSelector";
 
 export const App: React.FC = () => {
   // State to manage filter criteria
   const [priceType, setPriceType] = useState<PriceType>("all");
-  const [priceRange, setPriceRange] = useState<number[]>([0, 8000]); // Price in cents (0€ to 50€)
+  const [priceRange, setPriceRange] = useState<number[]>([0, 5000]); // Price in cents (0€ to 50€)
   const [isFilterApplied, setIsFilterApplied] = useState(false);
-
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
+  const [fullCoveragePackages, setFullCoveragePackages] = useState<Package[]>(
+    []
+  );
 
   const handleTeamsChange = (teams: string[]) => {
     setSelectedTeams(teams);
@@ -37,13 +40,16 @@ export const App: React.FC = () => {
   // Handler for price type selection
   const handlePriceTypeChange = (newType: PriceType) => {
     setPriceType(newType);
-    setIsFilterApplied(false); // Reset filter when changing price type
+    setIsFilterApplied(false);
   };
 
-  // Handler for toggling filter: Apply or Clear
+  // Handler for toggling filter
   const toggleFilter = () => {
     setIsFilterApplied(!isFilterApplied);
   };
+
+  // Determine active price range based on filter state
+  const activePriceRange = isFilterApplied ? priceRange : null;
 
   return (
     <Container maxWidth="lg">
@@ -126,7 +132,7 @@ export const App: React.FC = () => {
                     selected={priceType === "monthly"}
                     onClick={() => handlePriceTypeChange("monthly")}
                   >
-                    <ListItemText primary="Monthly Price Only" />
+                    <ListItemText primary="Monthly Subscription" />
                   </ListItemButton>
                 </ListItem>
                 <ListItem disablePadding>
@@ -134,60 +140,57 @@ export const App: React.FC = () => {
                     selected={priceType === "yearly"}
                     onClick={() => handlePriceTypeChange("yearly")}
                   >
-                    <ListItemText primary="Yearly Subscription Only" />
+                    <ListItemText primary="Yearly Subscription" />
                   </ListItemButton>
                 </ListItem>
               </List>
 
-              {/* Price Range Slider */}
-              {priceType !== "all" && (
-                <Box sx={{ px: 2, pb: 3 }}>
-                  <Typography
-                    gutterBottom
-                    sx={{
-                      fontWeight: 500,
-                      color: "text.primary",
-                    }}
-                  >
-                    Price Range (€)
-                  </Typography>
-                  <Slider
-                    value={priceRange}
-                    onChange={handlePriceChange}
-                    valueLabelDisplay="auto"
-                    min={0}
-                    max={5000}
-                    step={100}
-                    valueLabelFormat={(value) => `${(value / 100).toFixed(2)}€`}
-                    sx={{
-                      "& .MuiSlider-thumb": {
-                        "&:hover, &.Mui-focusVisible": {
-                          boxShadow: "0 0 0 8px rgba(25, 118, 210, 0.16)",
-                        },
+              {/* Price Range Slider - Always visible */}
+              <Box sx={{ px: 2, pb: 3 }}>
+                <Typography
+                  gutterBottom
+                  sx={{
+                    fontWeight: 500,
+                    color: "text.primary",
+                  }}
+                >
+                  Price Range (€)
+                </Typography>
+                <Slider
+                  value={priceRange}
+                  onChange={handlePriceChange}
+                  valueLabelDisplay="auto"
+                  min={0}
+                  max={5000}
+                  step={100}
+                  valueLabelFormat={(value) => `${(value / 100).toFixed(2)}€`}
+                  sx={{
+                    "& .MuiSlider-thumb": {
+                      "&:hover, &.Mui-focusVisible": {
+                        boxShadow: "0 0 0 8px rgba(25, 118, 210, 0.16)",
                       },
-                    }}
-                  />
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: "text.secondary",
-                      mt: 1,
-                      textAlign: "center",
-                    }}
-                  >
-                    {(priceRange[0] / 100).toFixed(2)}€ -{" "}
-                    {(priceRange[1] / 100).toFixed(2)}€
-                  </Typography>
-                </Box>
-              )}
+                    },
+                  }}
+                />
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "text.secondary",
+                    mt: 1,
+                    textAlign: "center",
+                  }}
+                >
+                  {(priceRange[0] / 100).toFixed(2)}€ -{" "}
+                  {(priceRange[1] / 100).toFixed(2)}€
+                </Typography>
+              </Box>
 
-              {/* Toggle Apply/Clear Button */}
+              {/* Apply/Clear Filter Button */}
               <Button
                 variant={isFilterApplied ? "outlined" : "contained"}
                 color={isFilterApplied ? "secondary" : "primary"}
                 onClick={toggleFilter}
                 fullWidth
-                disabled={priceType === "all" && selectedTeams.length === 0}
                 sx={{
                   py: 1.5,
                   textTransform: "none",
@@ -204,12 +207,17 @@ export const App: React.FC = () => {
           </Grid>
 
           {/* Packages Display */}
-          {/* Packages Display */}
           <Grid item xs={12} md={9}>
             <PackageContainer
+              selectedTeams={selectedTeams}
               priceType={priceType}
-              priceRange={isFilterApplied ? priceRange : null}
-              selectedTeams={selectedTeams} // Add this
+              priceRange={activePriceRange}
+              onFullCoveragePackagesChange={setFullCoveragePackages}
+            />
+
+            <PackageCombinationsContainer
+              selectedTeams={selectedTeams}
+              excludeFullCoveragePackages={fullCoveragePackages}
             />
           </Grid>
         </Grid>

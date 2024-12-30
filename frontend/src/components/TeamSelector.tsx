@@ -8,7 +8,7 @@ interface TeamSelectorProps {
   onTeamsChange: (teams: string[]) => void;
 }
 
-export const TeamSelector: React.FC<TeamSelectorProps> = ({
+const TeamSelector: React.FC<TeamSelectorProps> = ({
   selectedTeams,
   onTeamsChange,
 }) => {
@@ -57,3 +57,5 @@ export const TeamSelector: React.FC<TeamSelectorProps> = ({
     </Box>
   );
 };
+
+export default TeamSelector;

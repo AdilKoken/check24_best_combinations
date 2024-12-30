@@ -3,19 +3,24 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     TeamListView,
+    TeamSearchView,
     PackageListView,
     PackagesByTeamsView,
     PackagesByTeamsViewSoft,
+    PackageCombinationView,
+    PackageCombinationViewBackup,
     StreamingPackageViewSet
 )
 
 router = DefaultRouter()
-router.register(r'streaming-packages', StreamingPackageViewSet)  # Changed this route
+router.register(r'streaming-packages', StreamingPackageViewSet)
 
 urlpatterns = [
-    path('teams/', TeamListView.as_view(), name='team-list'),
-    path('packages/', PackageListView.as_view(), name='package-list'),
-    path('packages/by-teams/', PackagesByTeamsView.as_view(), name='packages-by-teams'),
-    path('packages/by-teams-soft/', PackagesByTeamsViewSoft.as_view(), name='packages-by-teams-soft'),
-    path('', include(router.urls))
+    path('teams/', TeamListView.as_view()),
+    path('teams/search/', TeamSearchView.as_view()),
+    path('packages/', PackageListView.as_view()),
+    path('packages/by-teams/', PackagesByTeamsView.as_view()),
+    path('packages/by-teams-soft/', PackagesByTeamsViewSoft.as_view()),
+    path('packages/combinations/', PackageCombinationView.as_view()),
+    path('packages/combinations-backup/', PackageCombinationViewBackup.as_view()),
 ]

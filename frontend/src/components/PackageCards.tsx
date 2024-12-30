@@ -8,7 +8,7 @@ interface PackageCardsProps {
   useSoftCoverage?: boolean;
 }
 
-export const PackageCards: React.FC<PackageCardsProps> = ({ packages }) => {
+const PackageCards: React.FC<PackageCardsProps> = ({ packages }) => {
   return (
     <Grid container spacing={3}>
       {packages.map((pkg) => (
