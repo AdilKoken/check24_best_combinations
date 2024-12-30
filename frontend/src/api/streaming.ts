@@ -1,23 +1,27 @@
 import { apiClient } from './client';
-import type { 
-    StreamingPackage, 
-} from '../types/data';
+import type { Package } from '../types/components';
+
+interface PackageWithCoverage {
+  package: Package;
+  coverage: number;
+}
 
 export const streamingApi = {
-    async getAllTeams(): Promise<string[]> {
-        const response = await apiClient.get<string[]>('/api/teams/');
-        return Array.isArray(response.data) ? response.data : response.data.results;
-    },
+  async getAllTeams(): Promise<string[]> {
+    const response = await apiClient.get<string[]>('/api/teams/');
+    return response.data;
+  },
 
-    async getPackagesByTeams(teams: string[]): Promise<StreamingPackage[]> {
-        const response = await apiClient.post<{results: StreamingPackage[]}>('/api/packages/by-teams/', {
-            teams: teams  // Make sure we're sending the data in correct format
-        });
-        return response.data
-    },
+  async getPackagesByTeams(teams: string[], useSoftCoverage: boolean = false): Promise<Package[] | PackageWithCoverage[]> {
+    const endpoint = useSoftCoverage ? '/api/packages/by-teams-soft/' : '/api/packages/by-teams/';
+    const response = await apiClient.post(endpoint, {
+      teams: teams
+    });
+    return response.data;
+  },
 
-    async getAllPackages(): Promise<StreamingPackage[]> {
-        const response = await apiClient.get<{results: StreamingPackage[]}>('/api/packages/');
-        return response.data;
-    }
+  async getAllPackages(): Promise<Package[]> {
+    const response = await apiClient.get('/api/packages/');
+    return response.data;
+  }
 };

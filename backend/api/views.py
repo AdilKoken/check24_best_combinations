@@ -1,21 +1,19 @@
 from rest_framework import viewsets, views
 from rest_framework.response import Response
-from django.db.models import Q, Count
+from django.db.models import Q, Count, F
 from .models import Game, StreamingPackage, StreamingOffer
 from .serializers import (
-    GameSerializer,
     StreamingPackageSerializer,
 )
-from .utils.package_optimizer import calculate_package_coverage, find_optimal_combinations
+from .utils.package_optimizer import calculate_package_coverage
 
 class TeamListView(views.APIView):
-    def get(self, request):
-        """Get all unique team names"""
-        teams = Game.objects.values('team_home').annotate(team=F('team_home')).values('team').union(
-            Game.objects.values('team_away').annotate(team=F('team_away')).values('team')
-        ).order_by('team')
-        
-        return Response([team['team'] for team in teams])
+ def get(self, request):
+    """Get all unique team names"""
+    home_teams = Game.objects.values_list('team_home', flat=True).distinct()
+    away_teams = Game.objects.values_list('team_away', flat=True).distinct()
+    all_teams = sorted(set(list(home_teams) + list(away_teams)))
+    return Response(all_teams)
     
 class PackageListView(views.APIView):
     def get(self, request):
@@ -87,6 +85,46 @@ class PackagesByTeamsView(views.APIView):
         serializer = StreamingPackageSerializer(packages, many=True)
         return Response(serializer.data)
     
+class PackagesByTeamsViewSoft(views.APIView):
+    http_method_names = ['post']
+
+    def post(self, request, *args, **kwargs):
+        """Get packages with coverage percentage for selected teams"""
+        teams = request.data.get('teams', [])
+        
+        if not teams:
+            packages = StreamingPackage.objects.all()
+            serializer = StreamingPackageSerializer(packages, many=True)
+            return Response(serializer.data)
+
+        # Get all games involving the selected teams
+        team_games = Game.objects.filter(
+            Q(team_home__in=teams) | Q(team_away__in=teams)
+        )
+            
+        # Convert the games to a list of IDs
+        team_games_ids = team_games.values_list('id', flat=True).distinct()
+        
+        # Get all packages
+        packages = StreamingPackage.objects.all()
+        
+        # Calculate coverage for each package
+        package_coverage = calculate_package_coverage(packages, team_games_ids)
+
+        # Convert to response format
+        response_data = [
+            {
+                'package': StreamingPackageSerializer(item['package']).data,
+                'coverage': item['coverage']
+            }
+            for item in package_coverage
+        ]
+
+        # Sort packages by coverage (highest first)
+        response_data.sort(key=lambda x: x['coverage'], reverse=True)
+
+        return Response(response_data)
+
 class StreamingPackageViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet for listing all streaming packages"""
     queryset = StreamingPackage.objects.all()

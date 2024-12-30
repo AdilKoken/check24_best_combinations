@@ -1,19 +1,20 @@
 import React, { useEffect, useState } from "react";
-import { Package } from "../types/components";
+import { Box, FormControlLabel, Switch } from "@mui/material";
+import { Package, PackageWithCoverage } from "../types/components";
 import { streamingApi } from "../api";
 import { PackageCards } from "./PackageCards";
-import { PriceType } from "../types/components";
 
 interface PackageContainerProps {
-  priceType: PriceType;
-  priceRange: number[] | null;
   selectedTeams: string[];
 }
 
 export const PackageContainer: React.FC<PackageContainerProps> = ({
   selectedTeams,
 }) => {
-  const [packages, setPackages] = useState<Package[]>([]);
+  const [packages, setPackages] = useState<Package[] | PackageWithCoverage[]>(
+    []
+  );
+  const [useSoftCoverage, setUseSoftCoverage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,18 +22,26 @@ export const PackageContainer: React.FC<PackageContainerProps> = ({
     const fetchPackages = async () => {
       setLoading(true);
       try {
-        // Add console.log for debugging
-        console.log("Fetching packages with teams:", selectedTeams);
+        if (selectedTeams?.length > 0) {
+          // Get packages with coverage information
+          const data = await streamingApi.getPackagesByTeams(
+            selectedTeams,
+            useSoftCoverage
+          );
 
-        const data =
-          selectedTeams?.length > 0
-            ? await streamingApi.getPackagesByTeams(selectedTeams)
-            : await streamingApi.getAllPackages();
-        const all_packages = await streamingApi.getAllPackages();
-        console.log("all packages:", all_packages);
+          // Filter out packages with 0 coverage when using soft coverage
+          const filteredData = useSoftCoverage
+            ? (data as PackageWithCoverage[]).filter(
+                (item) => item.coverage > 0
+              )
+            : data;
 
-        console.log("Received packages:", data);
-        setPackages(data);
+          setPackages(filteredData);
+        } else {
+          // Get all packages without coverage
+          const data = await streamingApi.getAllPackages();
+          setPackages(data);
+        }
       } catch (err) {
         console.error("Error loading packages:", err);
         setError("Failed to load packages");
@@ -42,7 +51,7 @@ export const PackageContainer: React.FC<PackageContainerProps> = ({
     };
 
     fetchPackages();
-  }, [selectedTeams]);
+  }, [selectedTeams, useSoftCoverage]);
 
   if (loading) {
     return <div>Loading...</div>;
@@ -52,12 +61,28 @@ export const PackageContainer: React.FC<PackageContainerProps> = ({
     return <div>Error: {error}</div>;
   }
 
-  // Add console.log for debugging
-  console.log("Rendering packages:", packages);
+  return (
+    <Box>
+      {selectedTeams.length > 0 && (
+        <Box sx={{ mb: 3 }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={useSoftCoverage}
+                onChange={(e) => setUseSoftCoverage(e.target.checked)}
+                color="primary"
+              />
+            }
+            label="Show Partial Coverage"
+          />
+        </Box>
+      )}
 
-  return packages.length > 0 ? (
-    <PackageCards packages={packages} />
-  ) : (
-    <div>No packages found</div>
+      {packages.length > 0 ? (
+        <PackageCards packages={packages} useSoftCoverage={useSoftCoverage} />
+      ) : (
+        <div>No packages found</div>
+      )}
+    </Box>
   );
 };
