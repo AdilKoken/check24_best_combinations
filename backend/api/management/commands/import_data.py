@@ -32,7 +32,7 @@ class Command(BaseCommand):
                         id=row['id'],
                         team_home=row['team_home'],
                         team_away=row['team_away'],
-                        starts_at=row['starts_at'],    # tz-aware now!
+                        starts_at=row['starts_at'],
                         tournament_name=row['tournament_name']
                     )
                     for _, row in games_df.iterrows()
@@ -74,6 +74,7 @@ class Command(BaseCommand):
                     )
                     for _, row in offers_df.iterrows()
                 ]
+                
                 StreamingOffer.objects.bulk_create(offers)
                 self.stdout.write(self.style.SUCCESS(f'Successfully imported {len(offers)} offers'))
 

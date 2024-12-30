@@ -17,31 +17,3 @@ class StreamingOfferSerializer(serializers.ModelSerializer):
     class Meta:
         model = StreamingOffer
         fields = ['game', 'streaming_package', 'live', 'highlights']
-
-
-class PackageCoverageSerializer(serializers.Serializer):
-    package = StreamingPackageSerializer()
-    coverage = serializers.DictField(
-        child=serializers.IntegerField(),
-        default={
-            'total_matches': 0,
-            'live_matches': 0,
-            'highlights_only': 0,
-            'coverage_percentage': 0
-        }
-    )
-
-
-class PackageCombinationSerializer(serializers.Serializer):
-    packages = StreamingPackageSerializer(many=True)
-    total_monthly_cost = serializers.FloatField()
-    total_yearly_cost = serializers.FloatField()
-    coverage = serializers.DictField(
-        child=serializers.IntegerField(),
-        default={
-            'total_matches': 0,
-            'live_matches': 0,
-            'highlights_only': 0,
-            'coverage_percentage': 0
-        }
-    )

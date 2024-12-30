@@ -1,22 +1,21 @@
 from rest_framework import viewsets, views
 from rest_framework.response import Response
-from django.db.models import Q
+from django.db.models import Q, Count
 from .models import Game, StreamingPackage, StreamingOffer
 from .serializers import (
     GameSerializer,
     StreamingPackageSerializer,
-    PackageCoverageSerializer,
-    PackageCombinationSerializer
 )
 from .utils.package_optimizer import calculate_package_coverage, find_optimal_combinations
 
 class TeamListView(views.APIView):
     def get(self, request):
         """Get all unique team names"""
-        home_teams = Game.objects.values_list('team_home', flat=True).distinct()
-        away_teams = Game.objects.values_list('team_away', flat=True).distinct()
-        all_teams = sorted(set(list(home_teams) + list(away_teams)))
-        return Response(all_teams)
+        teams = Game.objects.values('team_home').annotate(team=F('team_home')).values('team').union(
+            Game.objects.values('team_away').annotate(team=F('team_away')).values('team')
+        ).order_by('team')
+        
+        return Response([team['team'] for team in teams])
     
 class PackageListView(views.APIView):
     def get(self, request):
@@ -45,6 +44,7 @@ class PackagesByTeamsView(views.APIView):
     
     def post(self, request, *args, **kwargs):
         """Get packages that offer all games for selected teams"""
+        print(f"\n packages by teams view\n")
         print("Received request method:", request.method)
         print("Received content type:", request.content_type)
         print("Received data:", request.data)
@@ -53,23 +53,40 @@ class PackagesByTeamsView(views.APIView):
         print("Extracted teams:", teams)
         
         if not teams:
-            return Response([])
-            
+            # No teams selected, return all packages
+            packages = StreamingPackage.objects.all()
+            serializer = StreamingPackageSerializer(packages, many=True)
+            return Response(serializer.data)
+        
+        print("Extracted teams:", teams)
+
         # Get all games involving the selected teams
         team_games = Game.objects.filter(
             Q(team_home__in=teams) | Q(team_away__in=teams)
         )
-        print("Found games:", team_games.count())
+            
+        #Convert the games to a list of IDs
+        team_games_ids = team_games.values_list('id', flat=True).distinct()
+        team_games_count = len(team_games_ids)
         
-        # Get packages that cover all these games
-        packages = StreamingPackage.objects.filter(
-            streamingoffer__game__in=team_games,
-            streamingoffer__live=True
+        # Only fetch packages that cover all those games
+        packages = (
+            StreamingPackage.objects
+            .annotate(
+                covered_game_count=Count(
+                    'streamingoffer__game',
+                    filter=Q(streamingoffer__game__in=team_games_ids),
+                    distinct=True
+                )
+            )
+            .filter(covered_game_count=team_games_count)
         ).distinct()
+
         print("Found packages:", packages.count())
         
         serializer = StreamingPackageSerializer(packages, many=True)
         return Response(serializer.data)
+    
 class StreamingPackageViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet for listing all streaming packages"""
     queryset = StreamingPackage.objects.all()
