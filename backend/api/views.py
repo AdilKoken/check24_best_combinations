@@ -6,7 +6,8 @@ from .models import Game, StreamingPackage, StreamingOffer
 from .serializers import StreamingPackageSerializer
 from itertools import combinations
 
-from .utils.package_optimizer import calculate_package_coverage
+from .utils.package_optimizer import calculate_package_coverage, get_coverage
+
 
 
 class TeamListView(views.APIView):
@@ -144,9 +145,8 @@ class PackageCombinationView(views.APIView):
         6) If free packages alone do not cover everything, generate combinations
            of the remaining (paid) packages up to `max_size`. Combine coverage
            from free + paid to see if we reach 100%. Keep all combos that cover 100%.
-        7) Sort combos by total monthly price and return the response.
+        7) Sort combos separately by monthly and yearly price and return both lists.
         """
-
         # 1) Parse request data
         teams = request.data.get('teams', [])
         packages_to_exclude = request.data.get('packages_to_exclude', []) or []
@@ -158,7 +158,10 @@ class PackageCombinationView(views.APIView):
 
         # If no teams provided, nothing to do
         if not teams:
-            return Response([])
+            return Response({
+                'monthly_ordered': [],
+                'yearly_ordered': []
+            })
 
         # 2) Get all games for these teams
         team_games = Game.objects.filter(
@@ -168,7 +171,10 @@ class PackageCombinationView(views.APIView):
 
         # If no games for these teams, return empty
         if not team_games_ids:
-            return Response([])
+            return Response({
+                'monthly_ordered': [],
+                'yearly_ordered': []
+            })
 
         # 3) Get all relevant packages covering at least one of these games with prefetching
         packages = StreamingPackage.objects.filter(
@@ -204,18 +210,17 @@ class PackageCombinationView(views.APIView):
                 free_packages_in_use.append(free_pkg)
                 coverage_from_free |= covered_by_this_free
 
-        # If free coverage alone covers everything, return only that combo
+        # If free coverage alone covers everything, return that combo for both lists
         if games_to_cover == set():
-            return Response(
-                self._build_response(
-                    [free_packages_in_use]  # just one combo
-                )
-            )
+            combo_data = self._build_response([free_packages_in_use], 'monthly')
+            return Response({
+                'monthly_ordered': combo_data,
+                'yearly_ordered': combo_data
+            })
 
         # 6) Generate combos of paid packages up to `max_size`
         all_covering_combos = []
         paid_package_list = list(paid_packages)
-
         max_combo_size = min(max_size, len(paid_package_list))
 
         for size in range(1, max_combo_size + 1):
@@ -227,57 +232,62 @@ class PackageCombinationView(views.APIView):
                     coverage_of_paid_pkg = {offer.game_id for offer in paid_pkg.relevant_offers}
                     games_to_cover_combo -= coverage_of_paid_pkg
 
-                if games_to_cover_combo:
-                    continue
-
                 if games_to_cover_combo == set():
                     final_combo = list(free_packages_in_use) + list(combo)
                     all_covering_combos.append(final_combo)
 
-        # 7) Build, sort, and return the combos
-        response_data = self._build_response(all_covering_combos)
-        return Response(response_data)
+        # 7) Build response with both monthly and yearly ordered combinations
+        monthly_combos = self._build_response(all_covering_combos, 'monthly')
+        yearly_combos = self._build_response(all_covering_combos, 'yearly')
 
-    def _build_response(self, combinations: List[List[StreamingPackage]]) -> List[Dict]:
-        """Build response data for each combo with improved sorting"""
+        return Response({
+            'monthly_ordered': monthly_combos[:3],  # Top 3 monthly combinations
+            'yearly_ordered': yearly_combos[:3]     # Top 3 yearly combinations
+        })
+
+    def _build_response(self, combinations: List[List[StreamingPackage]], sort_by='monthly') -> List[Dict]:
+        """Build response data for each combo with pricing and coverage"""
         response = []
         for combo in combinations:
-            total_monthly = sum(p.monthly_price_cents or 0 for p in combo)
-            total_yearly_by_monthly = sum(p.monthly_price_yearly_subscription_in_cents for p in combo)
+            # Check if any package has null monthly price
+            has_null_monthly = any(p.monthly_price_cents is None for p in combo)
+            
+            # Calculate totals
+            total_monthly = None if has_null_monthly else sum(p.monthly_price_cents or 0 for p in combo)
+            total_yearly_by_monthly = sum(p.monthly_price_yearly_subscription_in_cents or 0 for p in combo)
             
             response.append({
                 'packages': StreamingPackageSerializer(combo, many=True).data,
-                'total_monthly_price': total_monthly if any(p.monthly_price_cents for p in combo) else None,
+                'total_monthly_price': total_monthly,
                 'total_yearly_by_monthly': total_yearly_by_monthly,
-                'coverage': 100.0
+                'coverage': 100.0  # Main view only returns 100% coverage combinations
             })
 
-        # Sort by monthly price (None/unavailable last), then by yearly price
-        response.sort(
-            key=lambda x: (
-                float('inf') if x['total_monthly_price'] is None else x['total_monthly_price'],
+        # Sort based on the specified price type
+        if sort_by == 'monthly':
+            response.sort(key=lambda x: (
+                float('inf') if x['total_monthly_price'] is None else x['total_monthly_price']
+            ))
+        else:  # yearly
+            response.sort(key=lambda x: (
                 float('inf') if x['total_yearly_by_monthly'] is None else x['total_yearly_by_monthly']
-            )
-        )
+            ))
 
-        # Return only top 3 combinations
-        return response[:3]
+        return response
 
 
 class PackageCombinationViewBackup(views.APIView):
     """
     This is the backup version of the package combination view.
-    if the first one fails to find a solution, this one will be used.
-
-    this version removes the packages that does not contribute to the coverage
-    starting from the most expensive one.
+    If the first one fails to find a solution, this one will be used.
+    Returns the best possible combination even if it doesn't achieve 100% coverage.
     """
     http_method_names = ['post']
 
     def post(self, request, *args, **kwargs):
         """
         Backup implementation that finds package combinations by removing non-essential packages,
-        starting from the most expensive ones.
+        starting from the most expensive ones. Returns the best coverage achieved.
         
         Logic:
         1) Parse request data for teams, packages_to_exclude
@@ -285,7 +295,7 @@ class PackageCombinationViewBackup(views.APIView):
         3) Get all relevant packages with prefetching
         4) Sort packages by price (monthly, then yearly)
         5) Iteratively remove packages that don't reduce coverage
-        6) Return the optimized combination
+        6) Return the optimized combination with coverage percentage
         """
         # 1) Parse request data
         teams = request.data.get('teams', [])
@@ -293,19 +303,26 @@ class PackageCombinationViewBackup(views.APIView):
         
         # If no teams provided, nothing to do
         if not teams:
-            return Response([])
+            return Response({
+                'monthly_ordered': [],
+                'yearly_ordered': []
+            })
 
         # 2) Get all games for these teams
         team_games = Game.objects.filter(
             Q(team_home__in=teams) | Q(team_away__in=teams)
         )
         team_games_ids = set(team_games.values_list('id', flat=True).distinct())
+        total_games = len(team_games_ids)
 
         # If no games for these teams, return empty
-        if not team_games_ids:
-            return Response([])
+        if not total_games:
+            return Response({
+                'monthly_ordered': [],
+                'yearly_ordered': []
+            })
 
-        # 3) Get all relevant packages covering at least one of these games with prefetching
+        # 3) Get all relevant packages with prefetching
         packages = StreamingPackage.objects.filter(
             streamingoffer__game__in=team_games_ids
         ).prefetch_related(
@@ -320,77 +337,70 @@ class PackageCombinationViewBackup(views.APIView):
         if packages_to_exclude:
             packages = packages.exclude(id__in=packages_to_exclude)
 
-        # 4) Convert to list and sort packages by price
-        all_packages = list(packages)
+        # 4) First separate free and paid packages
+        free_packages = packages.filter(
+            Q(monthly_price_cents__isnull=False) & Q(monthly_price_cents=0)
+        )
+        paid_packages = list(packages.exclude(id__in=free_packages.values_list('id', flat=True)))
         
+        # Start with free packages coverage
+        free_coverage = get_coverage(free_packages)
+        remaining_games = set(team_games_ids) - free_coverage
+        current_packages = list(free_packages)
+
+        # 5) Sort paid packages by coverage first, then price
         def get_package_sort_key(pkg):
-            """Helper function to sort packages by monthly price, then yearly price"""
-            monthly_price = pkg.monthly_price_cents or float('inf')  # No monthly price = most expensive
-            yearly_price = pkg.monthly_price_yearly_subscription_in_cents or float('inf')
-            return (monthly_price, yearly_price)
+            """Helper function to sort packages by coverage (desc), then monthly price"""
+            coverage = len(get_coverage([pkg]) & remaining_games)  # Only count coverage of remaining games
+            monthly = pkg.monthly_price_cents or float('inf')
+            yearly = pkg.monthly_price_yearly_subscription_in_cents or float('inf')
+            return (-coverage, monthly, yearly)  # Negative coverage for descending order
         
-        all_packages.sort(key=get_package_sort_key, reverse=True)  # Sort descending (most expensive first)
+        # Sort paid packages
+        paid_packages.sort(key=get_package_sort_key)
 
-        # 5) Calculate initial coverage
-        def get_coverage(pkg_list):
-            """Helper function to get total game coverage from a list of packages"""
-            covered_games = set()
-            for pkg in pkg_list:
-                covered_games.update(offer.game_id for offer in pkg.relevant_offers)
-            return covered_games
+        # 6) Add packages until we have full coverage or run out of packages
+        for pkg in paid_packages:
+            pkg_coverage = get_coverage([pkg])
+            if remaining_games & pkg_coverage:  # If package covers any remaining game
+                current_packages.append(pkg)
+                remaining_games -= pkg_coverage
+                
+                if not remaining_games:  # Full coverage achieved
+                    break
 
-        initial_coverage = get_coverage(all_packages)
-        
-        # If we can't cover all games, return empty
-        if len(initial_coverage) < len(team_games_ids):
-            return Response([])
+        # Calculate final coverage percentage
+        final_coverage = get_coverage(current_packages)
+        coverage_percentage = (len(final_coverage) / total_games) * 100
 
-        # 6) Iteratively remove non-essential packages
-        essential_packages = []
-        remaining_packages = all_packages.copy()
+        # 7) Build response with monthly and yearly order
+        monthly_combo = self._build_response(current_packages, coverage_percentage, 'monthly')
+        yearly_combo = self._build_response(current_packages, coverage_percentage, 'yearly')
 
-        while remaining_packages:
-            pkg_to_test = remaining_packages.pop(0)  # Remove most expensive package first
-            
-            # Try coverage without this package
-            test_coverage = get_coverage(essential_packages + remaining_packages)
-            
-            if len(test_coverage) < len(team_games_ids):
-                # This package is essential for full coverage
-                essential_packages.append(pkg_to_test)
+        return Response({
+            'monthly_ordered': [monthly_combo],
+            'yearly_ordered': [yearly_combo]
+        })
 
-        # 7) Build and return the response with the essential packages
-        if essential_packages:
-            return Response(
-                self._build_response(
-                    [essential_packages]  # Just one optimized combo
-                )
-            )
-        
-        return Response([])
-
-    def _build_response(self, combinations: List[List[StreamingPackage]]) -> List[Dict]:
+    def _build_response(self, packages: List[StreamingPackage], coverage_percentage: float, sort_by='monthly') -> Dict:
         """
-        Build response data for each combo
+        Build response data for each combo, including coverage percentage.
+        If any package in a combination has a null monthly price, the total monthly price
+        for that combination will be null.
         """
-        response = []
-        for combo in combinations:
-            # Calculate total prices
-            total_monthly = sum((p.monthly_price_cents or 0) for p in combo)
-            total_yearly_by_monthly = sum(
-                (p.monthly_price_yearly_subscription_in_cents or 0) 
-                for p in combo
-            )
+        # Check if any package has null monthly price
+        has_null_monthly = any(p.monthly_price_cents is None for p in packages)
+            
+        # Calculate totals
+        total_monthly = None if has_null_monthly else sum(p.monthly_price_cents or 0 for p in packages)
+        total_yearly_by_monthly = sum(p.monthly_price_yearly_subscription_in_cents or 0 for p in packages)
 
-            response.append({
-                'packages': StreamingPackageSerializer(combo, many=True).data,
-                'total_monthly_price': total_monthly,
-                'total_yearly_by_monthly': total_yearly_by_monthly,
-                'coverage': 100.0
-            })
-
-        response.sort(key=lambda x: x['total_monthly_price'])
-        return response
+        return {
+            'packages': StreamingPackageSerializer(packages, many=True).data,
+            'total_monthly_price': total_monthly,
+            'total_yearly_by_monthly': total_yearly_by_monthly,
+            'coverage': round(coverage_percentage, 1)  # Round to 1 decimal place
+        }
 
 class StreamingPackageViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet for listing all streaming packages"""

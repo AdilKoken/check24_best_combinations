@@ -27,3 +27,10 @@ def calculate_package_coverage(packages, team_games_ids):
         })
     
     return package_coverage
+
+def get_coverage(pkg_list):
+    """Helper function to get total game coverage from a list of packages"""
+    covered_games = set()
+    for pkg in pkg_list:
+        covered_games.update(offer.game_id for offer in pkg.relevant_offers)
+    return covered_games

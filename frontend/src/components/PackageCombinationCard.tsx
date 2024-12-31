@@ -6,6 +6,13 @@ import { formatPrice } from "../utils";
 const PackageCombinationCard: React.FC<PackageCombinationCardProps> = ({
   combination,
 }) => {
+  // Get coverage color based on percentage
+  const getCoverageColor = (coverage: number) => {
+    if (coverage >= 100) return "success";
+    if (coverage >= 80) return "warning";
+    return "error";
+  };
+
   return (
     <Card
       elevation={2}
@@ -34,6 +41,33 @@ const PackageCombinationCard: React.FC<PackageCombinationCardProps> = ({
         >
           Package Combination
         </Typography>
+
+        {/* Coverage Badge */}
+        <Box sx={{ mb: 3 }}>
+          <Chip
+            label={`${combination.coverage.toFixed(1)}% Coverage`}
+            color={getCoverageColor(combination.coverage)}
+            sx={{
+              width: "100%",
+              "& .MuiChip-label": {
+                width: "100%",
+                textAlign: "center",
+              },
+            }}
+          />
+          {combination.coverage < 100 && (
+            <Typography
+              variant="body2"
+              sx={{
+                mt: 1,
+                textAlign: "center",
+                color: "warning.main",
+              }}
+            >
+              Some games may not be available
+            </Typography>
+          )}
+        </Box>
 
         {/* Package Names */}
         <Box sx={{ mb: 3 }}>

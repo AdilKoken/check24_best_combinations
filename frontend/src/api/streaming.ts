@@ -6,6 +6,11 @@ interface PackageWithCoverage {
   coverage: number;
 }
 
+interface CombinationsResponse {
+  monthly_ordered: PackageCombination[];
+  yearly_ordered: PackageCombination[];
+}
+
 export const streamingApi = {
   async getAllTeams(): Promise<string[]> {
     const response = await apiClient.get('/api/teams/');
@@ -34,7 +39,7 @@ export const streamingApi = {
   async getPackageCombinations(
     teams: string[], 
     packagesToExclude: Package[] = []
-  ): Promise<PackageCombination[]> {
+  ): Promise<CombinationsResponse> {
     const response = await apiClient.post('/api/packages/combinations/', {
       teams: teams,
       packages_to_exclude: packagesToExclude.map(pkg => pkg.id)
@@ -45,7 +50,7 @@ export const streamingApi = {
   async getPackageCombinationsBackup(
     teams: string[], 
     packagesToExclude: Package[] = []
-  ): Promise<PackageCombination[]> {
+  ): Promise<CombinationsResponse> {
     const response = await apiClient.post('/api/packages/combinations-backup/', {
       teams: teams,
       packages_to_exclude: packagesToExclude.map(pkg => pkg.id)

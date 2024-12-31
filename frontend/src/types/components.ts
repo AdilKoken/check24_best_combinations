@@ -28,8 +28,8 @@ export interface PackageContainerProps {
 
 export interface PackageCombination {
   packages: Package[];
-  total_monthly_price: number;
-  total_yearly_by_monthly: number;
+  total_monthly_price: number | null;
+  total_yearly_by_monthly: number | null;
   coverage: number;
 }
 
